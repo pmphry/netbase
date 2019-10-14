@@ -16,7 +16,7 @@ export {
         address: addr &log &optional;
         starttime: time &log &optional;
         endtime: time &log &optional;
-    };
+    } &redef;
 
     global close_obs: function(data: table[addr] of observation, idx: addr): interval;
 
