@@ -1,4 +1,4 @@
-#
+#! This script defines the core components of Netbase.  
 
 @load base/utils/directions-and-hosts 
 # @load user_custom/flow_labels   # Add me later... 
@@ -8,70 +8,186 @@ module Netbase;
 
 # Declare exports 
 export {
-    # Register the Log ID
+    ## The netbase log stream identifier. 
     redef enum Log::ID += { LOG };
 
-    # Declare observation record 
+    ## The record type that defines the fields in the log stream as well 
+    ## the observables that are being tracked for each monitored host. 
     type observation: record {
         address: addr &log &optional;
         starttime: time &log &optional;
         endtime: time &log &optional;
     } &redef;
 
+    ## Function called when an entry expires from the observations table. 
+    ## It converts unique lists to counts, prepares the entry for logging
+    ## and sends it on to the logging framework.  
     global close_obs: function(data: table[addr] of observation, idx: addr): interval;
 
-    # Container for baseline observations
+    ## Table for housing running observations for monitored IP addresses.  The observations
+    ## table is distributed across proxy nodes in the cluster using the data partitioing API. 
+    ## Arbitrary time buckets are created using the &create_expire attribute, when a key 
+    ## expires from the table the close_obs function is executed to prepare the record for logging. 
     global observations: table[addr] of observation = table() &create_expire=5 mins &expire_func=close_obs;  # <-- CHANGE ME
 
-    # Event executed when preparing an observation for logging 
+    ## Event executed when preparing an observation for logging. 
     global log_observation: event(p: Netbase::observation);
 
-    #  Event executed when an observation is written to the log 
+    ## Event executed when an observation is written to the log, e.g. 
+    ## by calling the Log::write function.  
     global write_obs_log: event(p: Netbase::observation);
 
-    # Type for sharing specific observations with proxies 
+    ## Type for sharing observed attributes and behaviors (observables)
+    ## with the aggregation nodes, typcially proxies in a cluster. 
     type observable: record { 
+        ## The name of the observable. This is a unique descriptor that 
+        ## should match any fields added to the observations record.  The 
+        ## observable name is what is used to bind the script logic that makes
+        ## the observation with the name of the behavior or attribute that is 
+        ## being tracked by netbase.  Everything is in the name, so take care 
+        ## to make sure names are concise, easy to understand and follow a 
+        ## consistent convention that makes ingest and analysis easier downstream. 
         name: string;
+        ## The optional value of the observable.  Optional because not every 
+        ## observable is meant to track unique instances of a data point as it relates
+        ## to monitored IP addresses.  Use the val field to supply unique instances of 
+        ## a thing along with the name of the observable.  Values should be cast as a 
+        ## string type for transport and can be later converted back to their original 
+        ## type as needed. 
         val: string &optional;
     };
+    
+    ## Record for calculating and storing number stats
+    type avg_measure: record {
+        cnt: count &default=0;
+        min: double &default=0.0;
+        max: double &default=0.0;
+        sum: double &default=0.0;
+    };
 
-    # Function for publishing observables to the proxy pool 
+    ## Function for publishing observables to the proxy pool. Used in Netbase modules
+    ## to ensure consistent hanlding of observables. 
     global SEND: function(ip: addr, obs: set[observable]);
 
-    # Reusable table type for temporary storage 
-    # of observables inside event handlers
+    ## Reusable table type for temporary storage of observables within event handlers.
+    ## The observables table is typically instantiaded as a local variable, then used 
+    ## to accumulate all observables for monitored IP's, for a given event.  Once the 
+    ## event handler completes, the keys in the table (IP's) and values (set of observables) 
+    ## are passed to the SEND function for publishing to the proxy pool. 
+    ##
+    ## The intent is to minimize overlapping/redundant transmissions of observables
+    ## related to a given connection, reducing strain on the Broker comms
+    ## and processing load on proxies.  
     type observables: table[addr] of set[observable];
 
-    # Hook for external scripts to customize fields in the observation entry 
+    ## Hook used by netbase modules to customize fields in the observation entry after 
+    ## it has been added to the observations table.  This hook is not frequently needed
+    ## as observation record fields can be declared with a default initialization value
+    ## (e.g. an empty set). 
     global customize_obs: hook(ip: addr, observations: table[addr] of observation);
 
-    # Event for sending/receiving observables 
+    ## Event used by publish_hrw to invoke handling on the receiving node. 
     global add_observables: event(ip: addr, pkg: set[observable]);
+
+    ## Patern describing IP addresses that should never be monitored; e.g. broadcast 
+    ## and multicast addresses that might fall within monitored networks. 
+    # const excluded_hosts: pattern = /^255\.|\.255$|^2[23][0-9]\.|/;
+
+    ## List of subnets that contain critical assets.  Baseline observations will always be made 
+    ## for critical assets.  The values of the set are subnets but individual IP addresses can be 
+    ## defined using a /32 subnet mask.  Hosts or subnets defined in the list will be monitored
+    ## in addition to those that match the monitoring mode. 
+    global critical_assets: set[subnet] &default=set() &redef;
+
+    ## Enum that defines the available monitoring modes.  Observations will be made and 
+    ## logged for IP's that match this type.
+    type mode: enum {
+        ## Make observations for any IP within a non-routable RFC 1918 address range. 
+        PRIVATE_NETS,
+        ## Make observations for any IP within a Site::local_nets subnet. 
+        LOCAL_NETS,
+        ## Make observations for any IP within a Site:local_nets or Site::local_neighbors subnets.  
+        LOCAL_AND_NEIGHBORS
+    };
+
+    ## The monitoring mode Netbase is using to make and log observations.  Refer to Netbase::mode
+    ## for more information. 
+    const monitoring_mode: Netbase::mode &default=LOCAL_NETS &redef;
+
+    ## Function to determine if observations should be made for the given IP address. 
+    global is_monitored: function(ip: addr): bool;
 }
 
-# Function for sending observables from workers to proxies  
 function SEND(ip: addr, obs: set[observable])
     {
     Cluster::publish_hrw(Cluster::proxy_pool, ip, add_observables, ip, obs);
     event Netbase::add_observables(ip, obs);         
     }
 
-# Low priority event handler to write the observation to the log stream
-# Any handlers that need to modify the record should be set to run at a higher 
-# priority
-event log_observation(obs: observation) &priority=-5
+# Event called when its time to write an observation to the log stream. 
+# Any handlers that need to modify the record before it is logged, should set a higher 
+# priority level 
+event log_observation(obs: observation) &priority=-10
     {
-    # Write the IP observation log entry. Only proxies do this 
-    # in a cluster   
+    # Write the IP observation log entry. Only proxies do this in a cluster   
     @if ( ! Cluster::is_enabled() || Cluster::local_node_type() == Cluster::PROXY )
         Log::write(Netbase::LOG, obs);
     @endif
     }
 
+## Function to determine if observations should be made for a given IP
+function is_monitored(ip: addr): bool
+    {
+    #if ( Netbase::excluded_hosts in cat(ip) )
+    #    return F;
+
+    switch monitoring_mode {
+        case PRIVATE_NETS:
+            if ( ip in Site::private_address_space )
+                return T;
+            break;
+        case LOCAL_NETS:
+            if ( ip in Site::local_nets)
+                return T;
+            break;
+        case LOCAL_AND_NEIGHBORS:
+            if ( ip in Site::local_nets || ip in  Site::neighbor_nets )
+                return T;
+            break;
+    }
+
+    # Always montior critical assets. 
+    if ( ip in critical_assets )
+        return T;
+    
+    return F;
+    }
+
+# Update stats for a given number value
+function update_val_stats(rec: avg_measure, value: double)
+    {
+    # increment the sample count
+    rec$cnt += 1;
+
+    # add new value to sum
+    rec$sum += value;
+
+    # check if new min
+    if (value < rec$min)
+        {
+        rec$min = value;
+        }
+    # or if new max
+    else if (value > rec$max)
+        {
+        rec$max = value;
+        }
+    }
+
 # Function to handle expiring observations
 function close_obs(data: table[addr] of observation, idx: addr): interval 
     {
-    #  Set the endtime 
+    # Set the endtime 
     data[idx]$endtime = network_time();
 
     # Event for handling by other scripts to update fields 
@@ -84,30 +200,26 @@ function close_obs(data: table[addr] of observation, idx: addr): interval
 
 # Drop local suppression cache on workers to force HRW key repartitioning.
 #   Taking the lead from known_hosts here...  
+@if ( ! Cluster::is_enabled() || Cluster::local_node_type() == Cluster::WORKER ) 
 event Cluster::node_up(name: string, id: string)
     {
-    if ( Cluster::local_node_type() != Cluster::WORKER )
-        return;
-
     Netbase::observations = table();
     }
+@endif
 
 # Drop local suppression cache on workers to force HRW key repartitioning.
-#   Taking the lead from known_hosts here, agian...  
+#   Taking the lead from known_hosts here again...  
+@if ( ! Cluster::is_enabled() || Cluster::local_node_type() == Cluster::WORKER ) 
 event Cluster::node_down(name: string, id: string)
     {
-    if ( Cluster::local_node_type() != Cluster::WORKER )
-        return;
-
     Netbase::observations = table();
     }
+@endif
 
-# Function to start observing for the provided IP
-# Primary reason for this is to set starttime and 
-# initialize sets for unique values 
+# Function to start observing for the provided IP. 
 function start_obs(ip: addr) 
     {
-    if ( addr_matches_host(ip, LOCAL_HOSTS) )
+    if ( Netbase::is_monitored(ip) )
         {
         observations[ip] = [$address=ip,$starttime=network_time()];
 
@@ -118,9 +230,10 @@ function start_obs(ip: addr)
         }
     }
 
-# Handler to ensure the IP observation record exists in the table
+# High priority handler to ensure the IP observation record exists in the table before 
+# any new values are stored. 
 @if ( ! Cluster::is_enabled() || Cluster::local_node_type() == Cluster::PROXY ) 
-event Netbase::add_observables(ip: addr, obs: set[observable]) &priority=10
+event Netbase::add_observables(ip: addr, obs: set[observable]) &priority=100
     {
     if ( ip !in observations ) 
         {

@@ -7,30 +7,30 @@ export {
 
     const DOFLOW: bool = T;       
 
-	redef record Netbase::observation += {
-	    int_ports: set[string] &optional;                  # Unique ports communicated with internally
-	    int_port_cnt: count &default=0 &log;               # Count of unique ports communicated with internally
-	    int_hosts: set[string] &optional;                  # Unique hosts communicated with internally
-	    int_host_cnt: count &default=0 &log;               # Count of unique hosts communicated with internally
-	    ext_ports: set[string] &optional;                  # Unique ports communicated with externally
-	    ext_port_cnt: count &default=0 &log;               # Count of unique ports communicated with externally
-	    ext_hosts: set[string] &optional;                  # Unique IP's communicated with externally
-	    ext_host_cnt: count &default=0 &log;               # Count of unique hosts communicated with externally
-	    int_clients: set[string] &optional;                # Unique internal clients communicating with this IP
-	    int_client_cnt: count &default=0 &log;             # Count of unique internal clients communicating with this IP
-	    ext_clients: set[string] &optional;                # Unique external clients communicating with this IP
-	    ext_client_cnt: count &default=0 &log;             # Count fo unique external clients communicating with this IP
-	    total_conns: count &default=0 &log;                # Total count of connections this IP was involved in
+    redef record Netbase::observation += {
+        int_ports: set[string] &default=set();             # Unique ports communicated with internally
+        int_port_cnt: count &default=0 &log;               # Count of unique ports communicated with internally
+        int_hosts: set[string] &default=set();             # Unique hosts communicated with internally
+        int_host_cnt: count &default=0 &log;               # Count of unique hosts communicated with internally
+        ext_ports: set[string] &default=set();             # Unique ports communicated with externally
+        ext_port_cnt: count &default=0 &log;               # Count of unique ports communicated with externally
+        ext_hosts: set[string] &default=set();             # Unique IP's communicated with externally
+        ext_host_cnt: count &default=0 &log;               # Count of unique hosts communicated with externally
+        int_clients: set[string] &default=set();           # Unique internal clients communicating with this IP
+        int_client_cnt: count &default=0 &log;             # Count of unique internal clients communicating with this IP
+        ext_clients: set[string] &default=set();           # Unique external clients communicating with this IP
+        ext_client_cnt: count &default=0 &log;             # Count fo unique external clients communicating with this IP
+        total_conns: count &default=0 &log;                # Total count of connections this IP was involved in
         out_orig_conns: count &default=0 &log;             # Total count of external conns originated by this IP
-	    out_succ_conns: count &default=0 &log;             # Count of outbound conns originated by this IP that were successful
-	    out_rej_conns: count &default=0 &log;              # Count of outbound conns originated by this IP that were rejected
-	    out_to_highports: count &default=0 &log;           # Count of outbound conns originated by this IP to ports >= 1024
-	    out_to_lowports: count &default=0 &log;            # Count of outbound conns originated by this IP to ports < 1024
-	    out_to_service: count &default=0 &log;             # Count of outbound conns to a recognized service (service field populated)
-	    int_orig_conns: count &default=0 &log;             # Total count of internal conns originated by this host   <-- 
-	    int_rej_conns: count &default=0 &log;              # Count of internal conns originated by this host that were rejected
-	    int_to_highports: count &default=0 &log;           # Count of internal conns to ports >= 1024
-	    int_to_lowports: count &default=0 &log;            # Count of internal conns to ports < 1024     
+        out_succ_conns: count &default=0 &log;             # Count of outbound conns originated by this IP that were successful
+        out_rej_conns: count &default=0 &log;              # Count of outbound conns originated by this IP that were rejected
+        out_to_highports: count &default=0 &log;           # Count of outbound conns originated by this IP to ports >= 1024
+        out_to_lowports: count &default=0 &log;            # Count of outbound conns originated by this IP to ports < 1024
+        out_to_service: count &default=0 &log;             # Count of outbound conns to a recognized service (service field populated)
+        int_orig_conns: count &default=0 &log;             # Total count of internal conns originated by this host   <-- 
+        int_rej_conns: count &default=0 &log;              # Count of internal conns originated by this host that were rejected
+        int_to_highports: count &default=0 &log;           # Count of internal conns to ports >= 1024
+        int_to_lowports: count &default=0 &log;            # Count of internal conns to ports < 1024     
         int_to_service: count &default=0 &log;             # Count of internal conns to recognized server (service field populated)
         int_resp_conns: count &default=0 &log;             # Count of internal conns this IP responded to 
         int_orig_bytes_sent: count &default=0 &log;        # Sum of bytes sent as originator in internal conns
@@ -41,7 +41,7 @@ export {
         int_orig_pkts_recvd: count &default=0 &log;        # Count of packets recevied in internal conns
         out_orig_pkts_sent: count &default=0 &log;         # Count of packets sent as originator in outbound conns
         out_orig_pkts_recvd: count &default=0 &log;        # Count of packets received as originator in outbound conns 
-	};
+    };
 }
 
 # Function to gather flow stats for IPs in a given connection 
@@ -52,12 +52,12 @@ function Netbase::get_flow_obs(c: connection)
 
     local pkg = observables();
 
-    if ( addr_matches_host(orig, LOCAL_HOSTS) && /^255\.|\.255$/ !in cat(orig) )
+    if ( Netbase::is_monitored(orig) )
         {
         pkg[orig] = set([$name="total_conns"]);        
         }
 
-    if ( addr_matches_host(resp, LOCAL_HOSTS) && /^255\.|\.255$/ !in cat(resp) )
+    if ( Netbase::is_monitored(resp) )
         {
         pkg[resp] = set([$name="total_conns"]);
         }
@@ -125,7 +125,7 @@ function Netbase::get_flow_obs(c: connection)
         add pkg[orig][[$name="int_hosts", $val=cat(resp)]];
         add pkg[orig][[$name="int_orig_conns"]];
 
-        if ( /^255\.|\.255$/ !in cat(resp) )
+        if ( Netbase::is_monitored(resp) )
             {
             add pkg[resp][[$name="int_clients", $val=cat(orig)]];
             add pkg[resp][[$name="int_resp_conns"]];           
@@ -207,18 +207,6 @@ event Netbase::log_observation(obs: observation)
 
     obs$int_client_cnt = |obs$int_clients|;
     obs$ext_client_cnt = |obs$ext_clients|;
-    }
-
-# Define a hook handler to customize the observation fields 
-# for gathering flow stats 
-hook Netbase::customize_obs(ip: addr, obs: table[addr] of observation)
-    {           
-    obs[ip]$int_ports=set();
-    obs[ip]$int_hosts=set();
-    obs[ip]$ext_ports=set();
-    obs[ip]$ext_hosts=set();
-    obs[ip]$int_clients=set();
-    obs[ip]$ext_clients=set();
     }
 
 # Handler to load observables into the observations table
@@ -316,13 +304,13 @@ event Netbase::add_observables(ip: addr, obs: set[observable])
 
 # Hanndler to vet the connection and start observations
 event connection_state_remove(c: connection)
-	{
+    {
     if ( ! c?$id )
         return;
-	
-    if ( addr_matches_host(c$id$orig_h,LOCAL_HOSTS) || addr_matches_host(c$id$resp_h,LOCAL_HOSTS) )
-        get_flow_obs(c);
-	}
+    
+    if ( Netbase::is_monitored(c$id$orig_h) || Netbase::is_monitored(c$id$resp_h) )
+        Netbase::get_flow_obs(c);
+    }
 
 
 
