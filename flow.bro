@@ -7,6 +7,11 @@ export {
 
     const DOFLOW: bool = T;       
 
+    ## Add PCR to the conn log (Conn::Info record)
+    redef record Conn::Info += {
+        pcr: double &log &optional;
+    };
+
     redef record Netbase::observation += {
         int_ports: set[string] &default=set();             # Unique ports communicated with internally
         int_port_cnt: count &default=0 &log;               # Count of unique ports communicated with internally
@@ -45,19 +50,22 @@ export {
 }
 
 # Function to gather flow stats for IPs in a given connection 
-function Netbase::get_flow_obs(c: connection)
+function Netbase::get_flow_obs(c: connection, do_orig: bool, do_resp: bool)
     {
+    if ( ! do_orig && ! do_resp )
+        return;
+
     local orig = c$id$orig_h;
     local resp = c$id$resp_h;
 
     local pkg = observables();
 
-    if ( Netbase::is_monitored(orig) )
+    if ( do_orig )
         {
         pkg[orig] = set([$name="total_conns"]);        
         }
 
-    if ( Netbase::is_monitored(resp) )
+    if ( do_resp )
         {
         pkg[resp] = set([$name="total_conns"]);
         }
@@ -125,7 +133,7 @@ function Netbase::get_flow_obs(c: connection)
         add pkg[orig][[$name="int_hosts", $val=cat(resp)]];
         add pkg[orig][[$name="int_orig_conns"]];
 
-        if ( Netbase::is_monitored(resp) )
+        if ( do_resp )
             {
             add pkg[resp][[$name="int_clients", $val=cat(orig)]];
             add pkg[resp][[$name="int_resp_conns"]];           
@@ -196,6 +204,25 @@ function Netbase::get_flow_obs(c: connection)
         Netbase::SEND(resp, pkg[resp]);
         }
     }
+
+# Add pcr to all connections where data was exchanged 
+event connection_state_remove (c: connection) &priority=3 
+    {
+    
+    if ( ! c$orig?$size || ! c$resp?$size ) {
+        return;
+    }
+    else if (c$orig$size == 0 && c$resp$size == 0 ) {
+        return;   
+    }
+    else {
+        local n = (c$orig$size + 0.0) - (c$resp$size + 0.0);
+        local d = (c$orig$size + 0.0) + (c$resp$size + 0.0);
+
+        local x = ( n / d );
+        c$conn$pcr = x;
+    }
+}
 
 # Handler for grabbing unique value counts for logging
 event Netbase::log_observation(obs: observation)
@@ -308,8 +335,7 @@ event connection_state_remove(c: connection)
     if ( ! c?$id )
         return;
     
-    if ( Netbase::is_monitored(c$id$orig_h) || Netbase::is_monitored(c$id$resp_h) )
-        Netbase::get_flow_obs(c);
+    Netbase::get_flow_obs(c, Netbase::is_monitored(c$id$orig_h), Netbase::is_monitored(c$id$resp_h));
     }
 
 

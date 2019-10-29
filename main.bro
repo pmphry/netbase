@@ -63,7 +63,11 @@ export {
         min: double &default=0.0;
         max: double &default=0.0;
         sum: double &default=0.0;
+        avg: double &default=0.0;
     };
+
+    ## Function for updating an avg_measure record based on the provided value 
+    global update_val_stats: function(rec: avg_measure, val: double): avg_measure;
 
     ## Function for publishing observables to the proxy pool. Used in Netbase modules
     ## to ensure consistent hanlding of observables. 
@@ -93,10 +97,10 @@ export {
     ## and multicast addresses that might fall within monitored networks. 
     # const excluded_hosts: pattern = /^255\.|\.255$|^2[23][0-9]\.|/;
 
-    ## List of subnets that contain critical assets.  Baseline observations will always be made 
-    ## for critical assets.  The values of the set are subnets but individual IP addresses can be 
-    ## defined using a /32 subnet mask.  Hosts or subnets defined in the list will be monitored
-    ## in addition to those that match the monitoring mode. 
+    ## List of subnets that contain critical assets.  Hosts or subnets defined in the list
+    ## will be monitored in addition to those that match the monitoring mode. 
+    ## Values are of type subnet but individual IP addresses can be 
+    ## defined using a /32 mask: ex. 192.168.10.1/32   
     global critical_assets: set[subnet] &default=set() &redef;
 
     ## Enum that defines the available monitoring modes.  Observations will be made and 
@@ -107,7 +111,7 @@ export {
         ## Make observations for any IP within a Site::local_nets subnet. 
         LOCAL_NETS,
         ## Make observations for any IP within a Site:local_nets or Site::local_neighbors subnets.  
-        LOCAL_AND_NEIGHBORS
+        LOCAL_AND_NIEGHBORS
     };
 
     ## The monitoring mode Netbase is using to make and log observations.  Refer to Netbase::mode
@@ -156,7 +160,7 @@ function is_monitored(ip: addr): bool
             break;
     }
 
-    # Always montior critical assets. 
+    # Now check if its a critical asset  
     if ( ip in critical_assets )
         return T;
     
@@ -164,13 +168,16 @@ function is_monitored(ip: addr): bool
     }
 
 # Update stats for a given number value
-function update_val_stats(rec: avg_measure, value: double)
+function update_val_stats(rec: avg_measure, value: double): avg_measure
     {
     # increment the sample count
     rec$cnt += 1;
 
     # add new value to sum
     rec$sum += value;
+
+    # update the running average
+    rec$avg = rec$sum / rec$cnt;
 
     # check if new min
     if (value < rec$min)
@@ -182,6 +189,7 @@ function update_val_stats(rec: avg_measure, value: double)
         {
         rec$max = value;
         }
+    return rec;
     }
 
 # Function to handle expiring observations
