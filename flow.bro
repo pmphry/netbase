@@ -5,25 +5,18 @@ module Netbase;
 
 export {
 
-    const DOFLOW: bool = T;       
-
-    ## Add PCR to the conn log (Conn::Info record)
-    redef record Conn::Info += {
-        pcr: double &log &optional;
-    };
-
     redef record Netbase::observation += {
-        int_ports: set[string] &default=set();             # Unique ports communicated with internally
+        int_ports: set[string] &optional;                  # Unique ports communicated with internally
         int_port_cnt: count &default=0 &log;               # Count of unique ports communicated with internally
-        int_hosts: set[string] &default=set();             # Unique hosts communicated with internally
+        int_hosts: set[string] &optional;                  # Unique hosts communicated with internally
         int_host_cnt: count &default=0 &log;               # Count of unique hosts communicated with internally
-        ext_ports: set[string] &default=set();             # Unique ports communicated with externally
+        ext_ports: set[string] &optional;                  # Unique ports communicated with externally
         ext_port_cnt: count &default=0 &log;               # Count of unique ports communicated with externally
-        ext_hosts: set[string] &default=set();             # Unique IP's communicated with externally
+        ext_hosts: set[string] &optional;                  # Unique IP's communicated with externally
         ext_host_cnt: count &default=0 &log;               # Count of unique hosts communicated with externally
-        int_clients: set[string] &default=set();           # Unique internal clients communicating with this IP
+        int_clients: set[string] &optional;                # Unique internal clients communicating with this IP
         int_client_cnt: count &default=0 &log;             # Count of unique internal clients communicating with this IP
-        ext_clients: set[string] &default=set();           # Unique external clients communicating with this IP
+        ext_clients: set[string] &optional;                # Unique external clients communicating with this IP
         ext_client_cnt: count &default=0 &log;             # Count fo unique external clients communicating with this IP
         total_conns: count &default=0 &log;                # Total count of connections this IP was involved in
         out_orig_conns: count &default=0 &log;             # Total count of external conns originated by this IP
@@ -46,6 +39,36 @@ export {
         int_orig_pkts_recvd: count &default=0 &log;        # Count of packets recevied in internal conns
         out_orig_pkts_sent: count &default=0 &log;         # Count of packets sent as originator in outbound conns
         out_orig_pkts_recvd: count &default=0 &log;        # Count of packets received as originator in outbound conns 
+        ## PCR stats for internal tcp conns
+        pcr_int_tcp: Netbase::numstats &default=Netbase::numstats();
+        pcr_int_tcp_avg: double &optional &log;
+        pcr_int_tcp_max: double &optional &log;
+        pcr_int_tcp_min: double &optional &log;
+        ## PCR stats for internal udp conns
+        pcr_int_udp: Netbase::numstats &default=Netbase::numstats();
+        pcr_int_udp_avg: double &optional &log;
+        pcr_int_udp_max: double &optional &log;
+        pcr_int_udp_min: double &optional &log;
+        ## PCR stats for internal smb conns
+        pcr_int_smb: Netbase::numstats &default=Netbase::numstats();
+        pcr_int_smb_avg: double &optional &log;
+        pcr_int_smb_max: double &optional &log;
+        pcr_int_smb_min: double &optional &log;
+        ## PCR stats for outbound http conns
+        pcr_out_http: Netbase::numstats &default=Netbase::numstats();
+        pcr_out_http_avg: double &optional &log;
+        pcr_out_http_max: double &optional &log;
+        pcr_out_http_min: double &optional &log;
+        ## PCR stats for outbound dns conns
+        pcr_dns: Netbase::numstats &default=Netbase::numstats();
+        pcr_dns_avg: double &optional &log;
+        pcr_dns_max: double &optional &log;
+        pcr_dns_min: double &optional &log;
+        ## PCR stats for outbound https conns
+        pcr_out_https: Netbase::numstats &default=Netbase::numstats();
+        pcr_out_https_avg: double &optional &log;
+        pcr_out_https_max: double &optional &log;
+        pcr_out_https_min: double &optional &log;
     };
 }
 
@@ -123,7 +146,11 @@ function Netbase::get_flow_obs(c: connection, do_orig: bool, do_resp: bool)
 
         if ( c?$service && |c$service| > 0 )
             {
-            add pkg[orig][[$name="out_to_service"]];         
+            add pkg[orig][[$name="out_to_service"]];
+            if ( "DNS" in c$service && c$conn?$pcr )
+                {
+                add pkg[orig][[$name="pcr_dns", $val=cat(c$conn$pcr)]];
+                }
             }
         }   
     # Internal -> internal flow?
@@ -183,7 +210,11 @@ function Netbase::get_flow_obs(c: connection, do_orig: bool, do_resp: bool)
 
         if ( c?$service && |c$service| > 0 )
             {         
-            add pkg[orig][[$name="int_to_service"]];            
+            add pkg[orig][[$name="int_to_service"]]; 
+            if ( "DNS" in c$service && c$conn?$pcr )
+                {
+                add pkg[orig][[$name="pcr_dns", $val=cat(c$conn$pcr)]];
+                }
             }
         }
     # External -> internal flow?
@@ -205,25 +236,6 @@ function Netbase::get_flow_obs(c: connection, do_orig: bool, do_resp: bool)
         }
     }
 
-# Add pcr to all connections where data was exchanged 
-event connection_state_remove (c: connection) &priority=3 
-    {
-    
-    if ( ! c$orig?$size || ! c$resp?$size ) {
-        return;
-    }
-    else if (c$orig$size == 0 && c$resp$size == 0 ) {
-        return;   
-    }
-    else {
-        local n = (c$orig$size + 0.0) - (c$resp$size + 0.0);
-        local d = (c$orig$size + 0.0) + (c$resp$size + 0.0);
-
-        local x = ( n / d );
-        c$conn$pcr = x;
-    }
-}
-
 # Handler for grabbing unique value counts for logging
 event Netbase::log_observation(obs: observation)
     {
@@ -234,7 +246,25 @@ event Netbase::log_observation(obs: observation)
 
     obs$int_client_cnt = |obs$int_clients|;
     obs$ext_client_cnt = |obs$ext_clients|;
+
+    if ( obs$pcr_dns$cnt > 0 ) 
+        {
+        obs$pcr_dns_avg = obs$pcr_dns$avg;
+        obs$pcr_dns_max = obs$pcr_dns$max;
+        obs$pcr_dns_min = obs$pcr_dns$min;
+        }
     }
+
+# Hook handler to initialize sets 
+hook Netbase::customize_obs(ip: addr, obs: table[addr] of observation)
+     {           
+     obs[ip]$int_ports=set();
+     obs[ip]$int_hosts=set();
+     obs[ip]$ext_ports=set();
+     obs[ip]$ext_hosts=set();
+     obs[ip]$int_clients=set();
+     obs[ip]$ext_clients=set();
+     }
 
 # Handler to load observables into the observations table
 # This event is executed every time a node calls the SEND()
@@ -323,6 +353,9 @@ event Netbase::add_observables(ip: addr, obs: set[observable])
                 break;
             case "out_orig_pkts_recvd":
                 observations[ip]$out_orig_pkts_recvd = observations[ip]$out_orig_pkts_recvd + to_count(o$val);
+                break;
+            case "pcr_dns":
+                observations[ip]$pcr_dns = Netbase::update_numstats(observations[ip]$pcr_dns, to_double(o$val));
                 break;
             }       
         }

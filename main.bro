@@ -10,6 +10,11 @@ module Netbase;
 export {
     ## The netbase log stream identifier. 
     redef enum Log::ID += { LOG };
+    
+    ## Add PCR to the conn log (Conn::Info record)
+    redef record Conn::Info += {
+        pcr: double &log &optional;
+    };
 
     ## The record type that defines the fields in the log stream as well 
     ## the observables that are being tracked for each monitored host. 
@@ -58,7 +63,7 @@ export {
     };
     
     ## Record for calculating and storing number stats
-    type avg_measure: record {
+    type numstats: record {
         cnt: count &default=0;
         min: double &default=0.0;
         max: double &default=0.0;
@@ -66,8 +71,8 @@ export {
         avg: double &default=0.0;
     };
 
-    ## Function for updating an avg_measure record based on the provided value 
-    global update_val_stats: function(rec: avg_measure, val: double): avg_measure;
+    ## Function for updating an numstats record based on the provided value 
+    global update_numstats: function(rec: numstats, val: double): numstats;
 
     ## Function for publishing observables to the proxy pool. Used in Netbase modules
     ## to ensure consistent hanlding of observables. 
@@ -116,10 +121,14 @@ export {
 
     ## The monitoring mode Netbase is using to make and log observations.  Refer to Netbase::mode
     ## for more information. 
-    const monitoring_mode: Netbase::mode &default=LOCAL_NETS &redef;
+    const monitoring_mode: Netbase::mode = LOCAL_NETS &redef;
 
     ## Function to determine if observations should be made for the given IP address. 
     global is_monitored: function(ip: addr): bool;
+
+    ## Function to calculate PCR using the provided counts which are presumably 
+    ## originator bytes (o) and responder bytes (r)
+    global calc_pcr: function(o: count, r: count): double;
 }
 
 function SEND(ip: addr, obs: set[observable])
@@ -154,7 +163,7 @@ function is_monitored(ip: addr): bool
             if ( ip in Site::local_nets)
                 return T;
             break;
-        case LOCAL_AND_NEIGHBORS:
+        case LOCAL_AND_NIEGHBORS:
             if ( ip in Site::local_nets || ip in  Site::neighbor_nets )
                 return T;
             break;
@@ -168,7 +177,7 @@ function is_monitored(ip: addr): bool
     }
 
 # Update stats for a given number value
-function update_val_stats(rec: avg_measure, value: double): avg_measure
+function update_numstats(rec: numstats, value: double): numstats
     {
     # increment the sample count
     rec$cnt += 1;
@@ -205,6 +214,32 @@ function close_obs(data: table[addr] of observation, idx: addr): interval
     # Expire the entry now
     return 0 secs;
     }
+
+# Function to calculate PCR given two numbers (presumably byte counts)
+# we're not doing any safety checks so caller must ensure valid 
+# args are supplied. 
+function calc_pcr(o: count, r: count): double
+    {
+    local n = (o + 0.0) - (r + 0.0);
+    local d = (o + 0.0) + (r + 0.0);
+
+    return ( n / d );
+    }
+
+# Add pcr to all connections where data was exchanged 
+event connection_state_remove (c: connection) &priority=3 
+    {
+    
+    if ( ! c$orig?$size || ! c$resp?$size ) {
+        return;
+    }
+    else if (c$orig$size == 0 && c$resp$size == 0 ) {
+        return;   
+    }
+    else {
+        c$conn$pcr = calc_pcr(c$orig$size, c$resp$size);
+    }
+}
 
 # Drop local suppression cache on workers to force HRW key repartitioning.
 #   Taking the lead from known_hosts here...  
