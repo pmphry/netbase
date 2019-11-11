@@ -39,36 +39,41 @@ export {
         int_orig_pkts_recvd: count &default=0 &log;        # Count of packets recevied in internal conns
         out_orig_pkts_sent: count &default=0 &log;         # Count of packets sent as originator in outbound conns
         out_orig_pkts_recvd: count &default=0 &log;        # Count of packets received as originator in outbound conns 
-        ## PCR stats for internal tcp conns
-        pcr_int_tcp: Netbase::numstats &default=Netbase::numstats();
-        pcr_int_tcp_avg: double &optional &log;
-        pcr_int_tcp_max: double &optional &log;
-        pcr_int_tcp_min: double &optional &log;
-        ## PCR stats for internal udp conns
-        pcr_int_udp: Netbase::numstats &default=Netbase::numstats();
-        pcr_int_udp_avg: double &optional &log;
-        pcr_int_udp_max: double &optional &log;
-        pcr_int_udp_min: double &optional &log;
-        ## PCR stats for internal smb conns
-        pcr_int_smb: Netbase::numstats &default=Netbase::numstats();
-        pcr_int_smb_avg: double &optional &log;
-        pcr_int_smb_max: double &optional &log;
-        pcr_int_smb_min: double &optional &log;
-        ## PCR stats for outbound http conns
-        pcr_out_http: Netbase::numstats &default=Netbase::numstats();
-        pcr_out_http_avg: double &optional &log;
-        pcr_out_http_max: double &optional &log;
-        pcr_out_http_min: double &optional &log;
-        ## PCR stats for outbound dns conns
+        ## PCR stats for smb conns
+        smb_client_conns: count &default=0 &log;
+        smb_server_conns: count &default=0 &log;
+        pcr_smb: Netbase::numstats &default=Netbase::numstats();
+        pcr_smb_avg: double &optional &log;
+        pcr_smb_max: double &optional &log;
+        pcr_smb_min: double &optional &log;
+        ## PCR stats for http conns
+        http_client_conns: count &default=0 &log;
+        http_server_conns: count &default=0 &log;
+        pcr_http: Netbase::numstats &default=Netbase::numstats();
+        pcr_http_avg: double &optional &log;
+        pcr_http_max: double &optional &log;
+        pcr_http_min: double &optional &log;
+        ## PCR stats for dns conns
+        dns_client_conns: count &default=0 &log;
+        dns_server_conns: count &default=0 &log;
         pcr_dns: Netbase::numstats &default=Netbase::numstats();
         pcr_dns_avg: double &optional &log;
         pcr_dns_max: double &optional &log;
         pcr_dns_min: double &optional &log;
-        ## PCR stats for outbound https conns
-        pcr_out_https: Netbase::numstats &default=Netbase::numstats();
-        pcr_out_https_avg: double &optional &log;
-        pcr_out_https_max: double &optional &log;
-        pcr_out_https_min: double &optional &log;
+        ## PCR stats for ssl conns
+        ssl_client_conns: count &default=0 &log;
+        ssl_server_conns: count &default=0 &log;
+        pcr_ssl: Netbase::numstats &default=Netbase::numstats();
+        pcr_ssl_avg: double &optional &log;
+        pcr_ssl_max: double &optional &log;
+        pcr_ssl_min: double &optional &log;
+        ## PCR stats for rdp conns
+        rdp_client_conns: count &default=0 &log;
+        rdp_server_conns: count &default=0 &log;
+        pcr_rdp: Netbase::numstats &default=Netbase::numstats();
+        pcr_rdp_avg: double &optional &log;
+        pcr_rdp_max: double &optional &log;
+        pcr_rdp_min: double &optional &log;
     };
 }
 
@@ -96,32 +101,24 @@ function Netbase::get_flow_obs(c: connection, do_orig: bool, do_resp: bool)
     local rp = port_to_count(c$id$resp_p); 
 
     #  Internal -> external flow?
-    if ( id_matches_direction(c$id, OUTBOUND) )
+    if ( id_matches_direction(c$id, OUTBOUND) && do_orig )
         {
         add pkg[orig][[$name="ext_ports", $val=cat(c$id$resp_p)]];
         add pkg[orig][[$name="ext_hosts", $val=cat(c$id$resp_h)]];
         add pkg[orig][[$name="out_orig_conns"]];
 
         if ( c$orig?$size )
-            {
             add pkg[orig][[$name="out_orig_bytes_sent", $val=cat(c$orig$size)]];
-            }
-
+            
         if ( c$resp?$size )
-            {
             add pkg[orig][[$name="out_orig_bytes_rcvd", $val=cat(c$resp$size)]];
-            }
-
+            
         if ( c$orig?$num_pkts )
-            {
             add pkg[orig][[$name="out_orig_pkts_sent", $val=cat(c$orig$num_pkts)]];
-            }
-
+            
         if ( c$resp?$num_pkts )
-            {
             add pkg[orig][[$name="out_orig_pkts_recvd", $val=cat(c$resp$num_pkts)]];
-            }
-
+            
         if ( c$conn?$conn_state )
             {
             switch (c$conn$conn_state)
@@ -134,103 +131,163 @@ function Netbase::get_flow_obs(c: connection, do_orig: bool, do_resp: bool)
                     fallthrough;                    
                 }
             }
-        
-        if ( rp >= 1024)
-            {
-            add pkg[orig][[$name="out_to_highports"]];
-            }
-        else if ( rp < 1024 ) 
-            {
-            add pkg[orig][[$name="out_to_lowports"]];
-            }
 
         if ( c?$service && |c$service| > 0 )
-            {
             add pkg[orig][[$name="out_to_service"]];
-            if ( "DNS" in c$service && c$conn?$pcr )
-                {
-                add pkg[orig][[$name="pcr_dns", $val=cat(c$conn$pcr)]];
-                }
-            }
+            
+        if ( rp >= 1024)
+            add pkg[orig][[$name="out_to_highports"]];
+        else if ( rp < 1024 ) 
+            add pkg[orig][[$name="out_to_lowports"]];
         }   
     # Internal -> internal flow?
     else if ( addr_matches_host(orig,LOCAL_HOSTS) && addr_matches_host(resp,LOCAL_HOSTS) )
         {
-        add pkg[orig][[$name="int_ports", $val=cat(c$id$resp_p)]];
-        add pkg[orig][[$name="int_hosts", $val=cat(resp)]];
-        add pkg[orig][[$name="int_orig_conns"]];
-
         if ( do_resp )
             {
             add pkg[resp][[$name="int_clients", $val=cat(orig)]];
             add pkg[resp][[$name="int_resp_conns"]];           
             }
 
-        if ( c$orig?$size )
+        if ( do_orig )
             {
-            add pkg[orig][[$name="int_orig_bytes_sent", $val=cat(c$orig$size)]];
-            }
+            add pkg[orig][[$name="int_ports", $val=cat(c$id$resp_p)]];
+            add pkg[orig][[$name="int_hosts", $val=cat(resp)]];
+            add pkg[orig][[$name="int_orig_conns"]];
 
-        if ( c$resp?$size )
-            {
-            add pkg[orig][[$name="int_orig_bytes_rcvd", $val=cat(c$resp$size)]];
-            }
+            if ( c?$service && |c$service| > 0 )
+                add pkg[orig][[$name="int_to_service"]];
 
-        if ( c$orig?$num_pkts )
-            {
-            add pkg[orig][[$name="int_orig_pkts_sent", $val=cat(c$orig$num_pkts)]];
-            }
-
-        if ( c$resp?$num_pkts )
-            {
-            add pkg[orig][[$name="int_orig_pkts_recvd", $val=cat(c$resp$num_pkts)]];
-            }
-
-        if ( c$conn?$conn_state )
-            {
-            switch (c$conn$conn_state)
+            if ( c$orig?$size )
                 {
-                case "SF":
-                    add pkg[orig][[$name="int_conns"]];
-                    break;
-                case "REJ":
-                    add pkg[orig][[$name="int_rej_conns"]];
-                    fallthrough;
+                add pkg[orig][[$name="int_orig_bytes_sent", $val=cat(c$orig$size)]];
                 }
-            }
-         
-        if ( rp >= 1024)
-            {
-            add pkg[orig][[$name="int_to_highports"]];
-            }
-        else if ( rp < 1024 ) 
-            {
-            add pkg[orig][[$name="int_to_lowports"]];
-            }
 
-        if ( c?$service && |c$service| > 0 )
-            {         
-            add pkg[orig][[$name="int_to_service"]]; 
-            if ( "DNS" in c$service && c$conn?$pcr )
+            if ( c$resp?$size )
                 {
-                add pkg[orig][[$name="pcr_dns", $val=cat(c$conn$pcr)]];
+                add pkg[orig][[$name="int_orig_bytes_rcvd", $val=cat(c$resp$size)]];
+                }
+
+            if ( c$orig?$num_pkts )
+                {
+                add pkg[orig][[$name="int_orig_pkts_sent", $val=cat(c$orig$num_pkts)]];
+                }
+
+            if ( c$resp?$num_pkts )
+                {
+                add pkg[orig][[$name="int_orig_pkts_recvd", $val=cat(c$resp$num_pkts)]];
+                }
+
+            if ( c$conn?$conn_state )
+                {
+                switch (c$conn$conn_state)
+                    {
+                    case "SF":
+                        add pkg[orig][[$name="int_conns"]];
+                        break;
+                    case "REJ":
+                        add pkg[orig][[$name="int_rej_conns"]];
+                        fallthrough;
+                    }
+                }
+             
+            if ( rp >= 1024)
+                {
+                add pkg[orig][[$name="int_to_highports"]];
+                }
+            else if ( rp < 1024 ) 
+                {
+                add pkg[orig][[$name="int_to_lowports"]];
                 }
             }
         }
     # External -> internal flow?
-    else if ( id_matches_direction(c$id, INBOUND) && /^255\.|\.255$/ !in cat(resp) )
+    else if ( id_matches_direction(c$id, INBOUND) && do_resp )
         {
         add pkg[resp][[$name="server_conns"]];
         add pkg[resp][[$name="ext_clients", $val=cat(orig)]];
         }
 
+    # Now check the service field
+    for ( s in c$service )
+        {
+        switch s 
+            {
+            case "DNS":
+                # found dns
+                if ( do_orig ) 
+                    {
+                    add pkg[orig][[$name="dns_client_conns"]];
+                    if ( c$conn?$pcr )
+                        add pkg[orig][[$name="pcr_dns", $val=cat(c$conn$pcr)]];
+                    }
+                if ( do_resp )
+                    {
+                    add pkg[resp][[$name="dns_server_conns"]];
+                    }
+                break;
+
+            case "SSL":
+                if ( do_orig ) 
+                    {
+                    add pkg[orig][[$name="ssl_client_conns"]];
+                    if ( c$conn?$pcr )
+                        add pkg[orig][[$name="pcr_ssl", $val=cat(c$conn$pcr)]];
+                    }
+                if ( do_resp )
+                    {
+                    add pkg[resp][[$name="ssl_server_conns"]];
+                    }
+                break;
+
+            case "RDP":
+                if ( do_orig ) 
+                    {
+                    add pkg[orig][[$name="rdp_client_conns"]];
+                    if ( c$conn?$pcr )
+                        add pkg[orig][[$name="pcr_rdp", $val=cat(c$conn$pcr)]];
+                    }
+                if ( do_resp )
+                    {
+                    add pkg[resp][[$name="rdp_server_conns"]];
+                    }
+                break;
+
+            case "SMB":
+                if ( do_orig ) 
+                    {
+                    add pkg[orig][[$name="smb_client_conns"]];
+                    if ( c$conn?$pcr )
+                        add pkg[orig][[$name="pcr_smb", $val=cat(c$conn$pcr)]];
+                    }
+                if ( do_resp )
+                    {
+                    add pkg[resp][[$name="smb_server_conns"]];
+                    }
+                break;
+
+            case "HTTP":
+                if ( do_orig ) 
+                    {
+                    add pkg[orig][[$name="http_client_conns"]];
+                    if ( c$conn?$pcr )
+                        add pkg[orig][[$name="pcr_http", $val=cat(c$conn$pcr)]];
+                    }
+                if ( do_resp )
+                    {
+                    add pkg[resp][[$name="http_server_conns"]];
+                    }
+                break;
+            }
+        } 
+
     # See if the observable pkgs need delivering
-    if ( orig in pkg )
+    if ( do_orig )
         {
         Netbase::SEND(orig, pkg[orig]);
         }
 
-    if ( resp in pkg )
+    if ( do_resp )
         {
         Netbase::SEND(resp, pkg[resp]);
         }
@@ -252,6 +309,34 @@ event Netbase::log_observation(obs: observation)
         obs$pcr_dns_avg = obs$pcr_dns$avg;
         obs$pcr_dns_max = obs$pcr_dns$max;
         obs$pcr_dns_min = obs$pcr_dns$min;
+        }
+
+    if ( obs$pcr_http$cnt > 0 ) 
+        {
+        obs$pcr_http_avg = obs$pcr_http$avg;
+        obs$pcr_http_max = obs$pcr_http$max;
+        obs$pcr_http_min = obs$pcr_http$min;
+        }
+
+    if ( obs$pcr_ssl$cnt > 0 ) 
+        {
+        obs$pcr_ssl_avg = obs$pcr_ssl$avg;
+        obs$pcr_ssl_max = obs$pcr_ssl$max;
+        obs$pcr_ssl_min = obs$pcr_ssl$min;
+        }
+
+    if ( obs$pcr_smb$cnt > 0 ) 
+        {
+        obs$pcr_smb_avg = obs$pcr_smb$avg;
+        obs$pcr_smb_max = obs$pcr_smb$max;
+        obs$pcr_smb_min = obs$pcr_smb$min;
+        }
+
+    if ( obs$pcr_rdp$cnt > 0 ) 
+        {
+        obs$pcr_rdp_avg = obs$pcr_rdp$avg;
+        obs$pcr_rdp_max = obs$pcr_rdp$max;
+        obs$pcr_rdp_min = obs$pcr_rdp$min;
         }
     }
 
@@ -357,6 +442,48 @@ event Netbase::add_observables(ip: addr, obs: set[observable])
             case "pcr_dns":
                 observations[ip]$pcr_dns = Netbase::update_numstats(observations[ip]$pcr_dns, to_double(o$val));
                 break;
+            case "pcr_ssl":
+                observations[ip]$pcr_ssl = Netbase::update_numstats(observations[ip]$pcr_ssl, to_double(o$val));
+                break;
+            case "pcr_http":
+                observations[ip]$pcr_http = Netbase::update_numstats(observations[ip]$pcr_http, to_double(o$val));
+                break;
+            case "pcr_smb":
+                observations[ip]$pcr_smb = Netbase::update_numstats(observations[ip]$pcr_smb, to_double(o$val));
+                break;
+            case "pcr_rdp":
+                observations[ip]$pcr_rdp = Netbase::update_numstats(observations[ip]$pcr_rdp, to_double(o$val));
+                break;     
+            case "dns_server_conns":
+                ++observations[ip]$dns_server_conns;
+                break;       
+            case "dns_client_conns":
+                ++observations[ip]$dns_client_conns;
+                break;       
+            case "http_server_conns":
+                ++observations[ip]$http_server_conns;
+                break;       
+            case "http_client_conns":
+                ++observations[ip]$http_client_conns;
+                break;   
+            case "ssl_server_conns":
+                ++observations[ip]$ssl_server_conns;
+                break;       
+            case "ssl_client_conns":
+                ++observations[ip]$ssl_client_conns;
+                break;      
+            case "smb_server_conns":
+                ++observations[ip]$smb_server_conns;
+                break;       
+            case "smb_client_conns":
+                ++observations[ip]$smb_client_conns;
+                break;      
+            case "rdp_server_conns":
+                ++observations[ip]$rdp_server_conns;
+                break;       
+            case "rdp_client_conns":
+                ++observations[ip]$rdp_client_conns;
+                break;             
             }       
         }
     }

@@ -24,6 +24,9 @@ export {
         endtime: time &log &optional;
     } &redef;
 
+    ## Amount of time observations are tracked before being written to the log 
+    const obs_interval: interval = 1 mins &redef;
+
     ## Function called when an entry expires from the observations table. 
     ## It converts unique lists to counts, prepares the entry for logging
     ## and sends it on to the logging framework.  
@@ -33,7 +36,7 @@ export {
     ## table is distributed across proxy nodes in the cluster using the data partitioing API. 
     ## Arbitrary time buckets are created using the &create_expire attribute, when a key 
     ## expires from the table the close_obs function is executed to prepare the record for logging. 
-    global observations: table[addr] of observation = table() &create_expire=5 mins &expire_func=close_obs;  # <-- CHANGE ME
+    global observations: table[addr] of observation = table() &create_expire=obs_interval &expire_func=close_obs;  # <-- CHANGE ME
 
     ## Event executed when preparing an observation for logging. 
     global log_observation: event(p: Netbase::observation);
@@ -65,10 +68,10 @@ export {
     ## Record for calculating and storing number stats
     type numstats: record {
         cnt: count &default=0;
-        min: double &default=0.0;
-        max: double &default=0.0;
-        sum: double &default=0.0;
-        avg: double &default=0.0;
+        min: double &optional;
+        max: double &optional;
+        sum: double &optional;
+        avg: double &optional;
     };
 
     ## Function for updating an numstats record based on the provided value 
@@ -151,8 +154,8 @@ event log_observation(obs: observation) &priority=-10
 ## Function to determine if observations should be made for a given IP
 function is_monitored(ip: addr): bool
     {
-    #if ( Netbase::excluded_hosts in cat(ip) )
-    #    return F;
+    if (/^255\.|\.255$/ in cat(ip) )
+        return F;
 
     switch monitoring_mode {
         case PRIVATE_NETS:
@@ -182,22 +185,36 @@ function update_numstats(rec: numstats, value: double): numstats
     # increment the sample count
     rec$cnt += 1;
 
-    # add new value to sum
-    rec$sum += value;
-
+    if ( rec?$sum )
+        rec$sum += value;
+    else
+        rec$sum = value;
+    
     # update the running average
     rec$avg = rec$sum / rec$cnt;
 
     # check if new min
-    if (value < rec$min)
+    if ( rec?$min )
         {
+        if (value < rec$min)
+            {
+            rec$min = value;
+            }    
+        }
+    else
         rec$min = value;
-        }
+    
     # or if new max
-    else if (value > rec$max)
+    if ( rec?$max )
         {
-        rec$max = value;
+        if (value > rec$max)
+            {
+            rec$max = value;
+            }
         }
+    else 
+        rec$max = value;
+        
     return rec;
     }
 
