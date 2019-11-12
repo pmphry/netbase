@@ -119,7 +119,7 @@ export {
         ## Make observations for any IP within a Site::local_nets subnet. 
         LOCAL_NETS,
         ## Make observations for any IP within a Site:local_nets or Site::local_neighbors subnets.  
-        LOCAL_AND_NIEGHBORS
+        LOCAL_AND_NEIGHBORS
     };
 
     ## The monitoring mode Netbase is using to make and log observations.  Refer to Netbase::mode
@@ -166,7 +166,7 @@ function is_monitored(ip: addr): bool
             if ( ip in Site::local_nets)
                 return T;
             break;
-        case LOCAL_AND_NIEGHBORS:
+        case LOCAL_AND_NEIGHBORS:
             if ( ip in Site::local_nets || ip in  Site::neighbor_nets )
                 return T;
             break;

@@ -5,7 +5,7 @@ Devices considered _monitored_ are configurable by redefining the `Netbase::moni
 
 * PRIVATE_NETS - Record observations for any IP within a non-routable RFC 1918 address range
 * LOCAL_NETS - Record observations for any IP within a Site::local_nets subnet 
-* LOCAL_AND_NIEGHBORS - Record observations for any IP within a Site:local_nets or Site::local_neighbors subnets
+* LOCAL_AND_NEIGHBORS - Record observations for any IP within a Site:local_nets or Site::local_neighbors subnets
 
 
 
