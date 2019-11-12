@@ -6,73 +6,131 @@ module Netbase;
 export {
 
     redef record Netbase::observation += {
-        int_ports: set[string] &optional;                  # Unique ports communicated with internally
-        int_port_cnt: count &default=0 &log;               # Count of unique ports communicated with internally
-        int_hosts: set[string] &optional;                  # Unique hosts communicated with internally
-        int_host_cnt: count &default=0 &log;               # Count of unique hosts communicated with internally
-        ext_ports: set[string] &optional;                  # Unique ports communicated with externally
-        ext_port_cnt: count &default=0 &log;               # Count of unique ports communicated with externally
-        ext_hosts: set[string] &optional;                  # Unique IP's communicated with externally
-        ext_host_cnt: count &default=0 &log;               # Count of unique hosts communicated with externally
-        int_clients: set[string] &optional;                # Unique internal clients communicating with this IP
-        int_client_cnt: count &default=0 &log;             # Count of unique internal clients communicating with this IP
-        ext_clients: set[string] &optional;                # Unique external clients communicating with this IP
-        ext_client_cnt: count &default=0 &log;             # Count fo unique external clients communicating with this IP
-        total_conns: count &default=0 &log;                # Total count of connections this IP was involved in
-        out_orig_conns: count &default=0 &log;             # Total count of external conns originated by this IP
-        out_succ_conns: count &default=0 &log;             # Count of outbound conns originated by this IP that were successful
-        out_rej_conns: count &default=0 &log;              # Count of outbound conns originated by this IP that were rejected
-        out_to_highports: count &default=0 &log;           # Count of outbound conns originated by this IP to ports >= 1024
-        out_to_lowports: count &default=0 &log;            # Count of outbound conns originated by this IP to ports < 1024
-        out_to_service: count &default=0 &log;             # Count of outbound conns to a recognized service (service field populated)
-        int_orig_conns: count &default=0 &log;             # Total count of internal conns originated by this host   <-- 
-        int_rej_conns: count &default=0 &log;              # Count of internal conns originated by this host that were rejected
-        int_to_highports: count &default=0 &log;           # Count of internal conns to ports >= 1024
-        int_to_lowports: count &default=0 &log;            # Count of internal conns to ports < 1024     
-        int_to_service: count &default=0 &log;             # Count of internal conns to recognized server (service field populated)
-        int_resp_conns: count &default=0 &log;             # Count of internal conns this IP responded to 
-        int_orig_bytes_sent: count &default=0 &log;        # Sum of bytes sent as originator in internal conns
-        int_orig_bytes_rcvd: count &default=0 &log;        # Sum of bytes received as originator in internal conns 
-        out_orig_bytes_sent: count &default=0 &log;        # Sum of bytes sent as originator in external conns
-        out_orig_bytes_rcvd: count &default=0 &log;        # Sum of bytes received as originator in external conns
-        int_orig_pkts_sent: count &default=0 &log;         # Count of packets sent in internal conns 
-        int_orig_pkts_recvd: count &default=0 &log;        # Count of packets recevied in internal conns
-        out_orig_pkts_sent: count &default=0 &log;         # Count of packets sent as originator in outbound conns
-        out_orig_pkts_recvd: count &default=0 &log;        # Count of packets received as originator in outbound conns 
-        ## PCR stats for smb conns
-        smb_client_conns: count &default=0 &log;
+        ## Unique ports communicated with internally
+        int_ports: set[string] &optional;                  
+        ## Count of unique ports communicated with internally
+        int_port_cnt: count &default=0 &log;               
+        ## Unique hosts communicated with internally
+        int_hosts: set[string] &optional;                  
+        ## Count of unique hosts communicated with internally
+        int_host_cnt: count &default=0 &log;               
+        ## Unique ports communicated with externally
+        ext_ports: set[string] &optional;                  
+        ## Count of unique ports communicated with externally
+        ext_port_cnt: count &default=0 &log;               
+        ## Unique IP's communicated with externally
+        ext_hosts: set[string] &optional;                  
+        ## Count of unique hosts communicated with externally
+        ext_host_cnt: count &default=0 &log;               
+        ## Unique internal clients communicating with this IP
+        int_clients: set[string] &optional;                
+        ## Count of unique internal clients communicating with this IP
+        int_client_cnt: count &default=0 &log;             
+        ## Unique external clients communicating with this IP
+        ext_clients: set[string] &optional;                
+        ## Count fo unique external clients communicating with this IP
+        ext_client_cnt: count &default=0 &log;             
+        ## Total count of connections this IP was involved in
+        total_conns: count &default=0 &log;                
+        ## Total count of external conns originated by this IP
+        out_orig_conns: count &default=0 &log;             
+        ## Count of outbound conns originated by this IP that were successful
+        out_succ_conns: count &default=0 &log;             
+        ## Count of outbound conns originated by this IP that were rejected
+        out_rej_conns: count &default=0 &log;              
+        ## Count of outbound conns originated by this IP to ports >= 1024
+        out_to_highports: count &default=0 &log;           
+        ## Count of outbound conns originated by this IP to ports < 1024
+        out_to_lowports: count &default=0 &log;            
+        ## Count of outbound conns to a recognized service (service field populated)
+        out_to_service: count &default=0 &log;             
+        ## Total count of internal conns originated by this host 
+        int_orig_conns: count &default=0 &log;             
+        ## Count of internal conns originated by this host that were rejected
+        int_rej_conns: count &default=0 &log;              
+        ## Count of internal conns to ports >= 1024
+        int_to_highports: count &default=0 &log;           
+        ## Count of internal conns to ports < 1024     
+        int_to_lowports: count &default=0 &log;            
+        ## Count of internal conns to recognized server (service field populated)
+        int_to_service: count &default=0 &log;             
+        ## Count of internal conns this IP responded to 
+        int_resp_conns: count &default=0 &log;             
+        ## Sum of bytes sent as originator in internal conns
+        int_orig_bytes_sent: count &default=0 &log;        
+        ## Sum of bytes received as originator in internal conns 
+        int_orig_bytes_rcvd: count &default=0 &log;        
+        ## Sum of bytes sent as originator in external conns
+        out_orig_bytes_sent: count &default=0 &log;        
+        ## Sum of bytes received as originator in external conns
+        out_orig_bytes_rcvd: count &default=0 &log;        
+        ## Count of packets sent in internal conns 
+        int_orig_pkts_sent: count &default=0 &log;         
+        ## Count of packets recevied in internal conns
+        int_orig_pkts_recvd: count &default=0 &log;        
+        ## Count of packets sent as originator in outbound conns
+        out_orig_pkts_sent: count &default=0 &log;         
+        ## Count of packets received as originator in outbound conns 
+        out_orig_pkts_recvd: count &default=0 &log;        
+        ## Count of SMB connections as a client
+        smb_client_conns: count &default=0 &log;           
+        ## Count of SMB connections as a server
         smb_server_conns: count &default=0 &log;
+        # Container for smb-related PCR stats           
         pcr_smb: Netbase::numstats &default=Netbase::numstats();
+        ## Avg pcr for smb connections
         pcr_smb_avg: double &optional &log;
+        ## Max pcr for smb connections
         pcr_smb_max: double &optional &log;
+        ## Min pcr for smb connections
         pcr_smb_min: double &optional &log;
-        ## PCR stats for http conns
+        ## Count of http connections as client 
         http_client_conns: count &default=0 &log;
+        ## Count of http connections as server
         http_server_conns: count &default=0 &log;
+        ## Container for http pcr stats
         pcr_http: Netbase::numstats &default=Netbase::numstats();
+        ## Avg pcr for http connections
         pcr_http_avg: double &optional &log;
+        ## Max pcr for http connections
         pcr_http_max: double &optional &log;
+        ## Min pcr for http connections
         pcr_http_min: double &optional &log;
-        ## PCR stats for dns conns
+        ## Count of dns connections as client 
         dns_client_conns: count &default=0 &log;
+        ## Count of dns connections as server 
         dns_server_conns: count &default=0 &log;
+        ## Container for dns pcr stats
         pcr_dns: Netbase::numstats &default=Netbase::numstats();
+        ## Avg pcr dns connections 
         pcr_dns_avg: double &optional &log;
+        ## Max pcr for dns connections
         pcr_dns_max: double &optional &log;
+        ## Min pcr for dns connections 
         pcr_dns_min: double &optional &log;
-        ## PCR stats for ssl conns
+        ## Count of ssl connection as client 
         ssl_client_conns: count &default=0 &log;
+        ## Count of ssl connections as server 
         ssl_server_conns: count &default=0 &log;
+        ## Container for ssl pcr stats 
         pcr_ssl: Netbase::numstats &default=Netbase::numstats();
+        ## Avg pcr for ssl connections
         pcr_ssl_avg: double &optional &log;
+        ## Max pcr for ssl connections
         pcr_ssl_max: double &optional &log;
+        ## Min pcr for ssl connections
         pcr_ssl_min: double &optional &log;
-        ## PCR stats for rdp conns
+        ## Count of rdp connections as client 
         rdp_client_conns: count &default=0 &log;
+        ## Count of rdp connections as server
         rdp_server_conns: count &default=0 &log;
+        ## Container for rdp pcr stats
         pcr_rdp: Netbase::numstats &default=Netbase::numstats();
+        ## Avg pcr for rdp connections
         pcr_rdp_avg: double &optional &log;
+        ## Max pcr for rdp connections
         pcr_rdp_max: double &optional &log;
+        ## Min pcr for rdp connections
         pcr_rdp_min: double &optional &log;
     };
 }

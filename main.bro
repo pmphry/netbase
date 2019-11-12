@@ -25,7 +25,7 @@ export {
     } &redef;
 
     ## Amount of time observations are tracked before being written to the log 
-    const obs_interval: interval = 1 mins &redef;
+    const obs_interval: interval = 5 mins &redef;
 
     ## Function called when an entry expires from the observations table. 
     ## It converts unique lists to counts, prepares the entry for logging
@@ -214,7 +214,7 @@ function update_numstats(rec: numstats, value: double): numstats
         }
     else 
         rec$max = value;
-        
+
     return rec;
     }
 
