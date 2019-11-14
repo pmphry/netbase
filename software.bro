@@ -16,48 +16,70 @@ module Netbase;
 export {
 
     redef record Netbase::observation += {
-        server_ports: set[string] &log &optional;
-        apps: set[string] &log &optional;
-        updated_apps: set[string] &log &optional;
+        software: set[string] &log &optional;
+        updated_software: set[string] &log &optional;
     };
 }
 
 # Hook handler to initialize sets 
 hook Netbase::customize_obs(ip: addr, obs: table[addr] of observation)
      {           
-     obs[ip]$server_ports=set();
-     obs[ip]$apps=set();
-     obs[ip]$updated_apps=set();
+     obs[ip]$software=set();
+     obs[ip]$updated_software=set();
      }
+
+function get_ver_string(v: Software::Info): string
+    {
+    if ( ! v?$version )
+        return "unkn";
+
+    local ver_string = "";
+    if ( ! v$version?$major )
+        return "unkn";
+    else 
+        {
+        ver_string = cat(v$version$major);
+        }
+        
+    if ( v$version?$minor )
+        ver_string = fmt("%s.%s", ver_string, cat(v$version$minor));
+    
+    if ( v$version?$minor2 )
+        ver_string = fmt("%s.%s", ver_string, cat(v$version$minor2));
+
+    if ( v$version?$minor3 )
+        ver_string = fmt("%s.%s", ver_string, cat(v$version$minor3));
+
+    return ver_string;
+    }
 
 event Software::register(info: Software::Info)
     {
     if ( ! info?$host || ! Netbase::is_monitored(info$host) )
         return;
 
-    local pkg = observables(
-            [info$host] = set()
-        );
+    local pkg = observables();
 
-    # if it's server software log it seperately 
-    if ( info?$software_type && "SERVER" in cat(info$software_type) )
-        {
-        local prt = info?$host_p ? cat(info$host_p) : "ukn";
-        add pkg[info$host][[
-                $name="server_ports",
-                $val=fmt("%s_%s", cat(info$software_type), prt)
-            ]];
-        }
-    
-    # log name and version, these combined should be unique-ish 
-    if ( info?$name ) 
-        {
-        local ver = info?$unparsed_version && |info$unparsed_version| > 0 ? info$unparsed_version : "ukn";
-        add pkg[info$host][[
-                $name="apps",
-                $val=fmt("%s_%s", info$name, ver)
-            ]];
-        }
+    pkg[info$host] = set();
+
+    local s = "";
+
+    if ( ! info?$software_type )
+        return;
+    else 
+        s = cat(info$software_type);
+
+    if ( info?$name && |info$name| > 0 )
+        s = fmt("%s_%s", s, info$name);
+    else 
+        s = fmt("%s_%s", s, "unkn");
+
+    s = fmt("%s_%s", s, get_ver_string(info));
+
+    add pkg[info$host][[
+            $name="software",
+            $val=s
+        ]];
 
     if ( |pkg[info$host]| > 0 )
         {
@@ -71,22 +93,31 @@ event Software::version_change(old: Software::Info, new: Software::Info)
     if ( ! new?$host || ! Netbase::is_monitored(new$host) )
         return;
 
-    local pkg = observables(
-            [new$host] = set()
-        );
+    local pkg = observables();
+    pkg[new$host] = set();
 
-    if ( new?$name )
-        {
-        local ver = new?$unparsed_version && |new$unparsed_version| > 0 ? new$unparsed_version : "ukn";
-        add pkg[new$host][[
-                $name="apps",
-                $val=fmt("%s_%s", new$name, ver)
-            ]];
-    }
+    local s = "";
 
-    if ( |pkg[new$host]| > 0 ) 
+    if ( ! new?$software_type )
+        return;
+    else 
+        s = cat(new$software_type);
+
+    if ( new?$name && |new$name| > 0 )
+        s = fmt("%s_%s", s, new$name);
+    else 
+        s = fmt("%s_%s", s, "unkn");
+
+    s = fmt("%s_%s", s, get_ver_string(new));
+
+    add pkg[new$host][[
+            $name="updated_software",
+            $val=s
+        ]];
+
+    if ( |pkg[new$host]| > 0 )
         {
-        Netbase::SEND(new$host, pkg[new$host]);
+        Netbase::SEND(new$host, pkg[new$host]); 
         }
     }
 
@@ -97,14 +128,11 @@ event Netbase::add_observables(ip: addr, obs: set[observable])
         {
         switch o$name
             {
-            case "server_ports":
-                add observations[ip]$server_ports[o$val];
+            case "software":
+                add observations[ip]$software[o$val];
                 break;
-            case "apps":
-                add observations[ip]$apps[o$val];
-                break;
-            case "updated_apps":
-                add observations[ip]$updated_apps[o$val];
+            case "updated_software":
+                add observations[ip]$updated_software[o$val];
                 break;
             }       
         }
