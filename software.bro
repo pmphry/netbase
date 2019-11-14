@@ -32,60 +32,66 @@ hook Netbase::customize_obs(ip: addr, obs: table[addr] of observation)
 
 event Software::register(info: Software::Info)
     {
-    if ( ! Netbase::is_monitored(host) )
+    if ( ! info?$host || ! Netbase::is_monitored(info$host) )
         return;
 
     local pkg = observables(
-            [host] = set();
+            [info$host] = set()
         );
     # if its server software log it seperately 
     if ( info?$software_type && "SERVER" in cat(info$software_type) )
         {
-        # check if we have a port 
-        if ( info?$host_p )
-            {
-            # if there is a port, observe it 
-            add pkg[host][[
-                    $name="server_ports",
-                    $val=cat(info$software_type + '_' + cat(info$host_p))
-                ]];
-            }
-        else 
-        # no port 
-            {
-            add pkg[host][[
-                    $name="server_ports",
-                    $val=cat(info$software_type + '_' + 'ukn')
-                ]];
-            }
+	local prt = info?$host_p ? cat(info$host_p) : "ukn";
+        add pkg[info$host][[
+        		$name="server_ports",
+               		$val=cat(info$software_type) + "_" + prt 
+                	]
+		];
         }
-
+    
     # log name and version, these combined should be unique-ish 
-    if ( info?$name && info?$unparsed_version )
+    if ( info?$name ) 
         {
-        add pkg[host][[
-                $name="apps",
-                $val=cat(info$name + '_' + info$unparsed_version)
-            ]];
-        }
-
-    if ( |pkg[host]| > 0 )
+        local ver = info?$unparsed_version && |info$unparsed_version| > 0 ? info$unparsed_version : "ukn";
+	add pkg[info$host][
+		[
+		$name="apps",
+		$val=fmt("%s_%s", cat(info$name), ver)
+		]
+	];
+	}
+    if ( |pkg[info$host]| > 0 )
         {
         # send it
-        Netbase::SEND(pkg[host]); 
+        Netbase::SEND(info$host, pkg[info$host]); 
         }
     }
 
 event Software::version_change(old: Software::Info, new: Software::Info)
     {
-    # observe app updates 
-    if ( new?$name && new?$unparsed_version )
+    # observe app updates
+    if ( ! new?$host || ! Netbase::is_monitored(new$host) )
+        return;
+
+    local pkg = observables(
+            [new$host] = set()
+        );
+
+    if ( new?$name )
         {
-        add pkg[host][[
-                $name="updated_apps",
-                $val=cat(new$name + '_' + new$unparsed_version)
-            ]];
-        }
+        local ver = new?$unparsed_version && |new$unparsed_version| > 0 ? new$unparsed_version : "ukn";
+        add pkg[new$host][
+                [
+                $name="apps",
+                $val=fmt("%s_%s", cat(new$name), ver)
+                ]
+        ];
+	}
+
+    if ( |pkg[new$host]| > 0 ) 
+	{
+	Netbase::SEND(new$host, pkg[new$host]);
+	}
     }
 
 @if ( ! Cluster::is_enabled() || Cluster::local_node_type() == Cluster::PROXY )
@@ -99,7 +105,7 @@ event Netbase::add_observables(ip: addr, obs: set[observable])
                 add observations[ip]$server_ports[o$val];
                 break;
             case "apps":
-                add observations[ip]$app[o$val];
+                add observations[ip]$apps[o$val];
                 break;
             case "updated_apps":
                 add observations[ip]$updated_apps[o$val];
@@ -108,8 +114,3 @@ event Netbase::add_observables(ip: addr, obs: set[observable])
         }
     }
 @endif
-
-
-
-
-
