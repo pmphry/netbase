@@ -38,31 +38,29 @@ event Software::register(info: Software::Info)
     local pkg = observables(
             [info$host] = set()
         );
-    # if its server software log it seperately 
+
+    # if it's server software log it seperately 
     if ( info?$software_type && "SERVER" in cat(info$software_type) )
         {
-	local prt = info?$host_p ? cat(info$host_p) : "ukn";
+        local prt = info?$host_p ? cat(info$host_p) : "ukn";
         add pkg[info$host][[
-        		$name="server_ports",
-               		$val=cat(info$software_type) + "_" + prt 
-                	]
-		];
+                $name="server_ports",
+                $val=fmt("%s_%s", cat(info$software_type), prt)
+            ]];
         }
     
     # log name and version, these combined should be unique-ish 
     if ( info?$name ) 
         {
         local ver = info?$unparsed_version && |info$unparsed_version| > 0 ? info$unparsed_version : "ukn";
-	add pkg[info$host][
-		[
-		$name="apps",
-		$val=fmt("%s_%s", cat(info$name), ver)
-		]
-	];
-	}
+        add pkg[info$host][[
+                $name="apps",
+                $val=fmt("%s_%s", info$name, ver)
+            ]];
+        }
+
     if ( |pkg[info$host]| > 0 )
         {
-        # send it
         Netbase::SEND(info$host, pkg[info$host]); 
         }
     }
@@ -80,18 +78,16 @@ event Software::version_change(old: Software::Info, new: Software::Info)
     if ( new?$name )
         {
         local ver = new?$unparsed_version && |new$unparsed_version| > 0 ? new$unparsed_version : "ukn";
-        add pkg[new$host][
-                [
+        add pkg[new$host][[
                 $name="apps",
-                $val=fmt("%s_%s", cat(new$name), ver)
-                ]
-        ];
-	}
+                $val=fmt("%s_%s", new$name, ver)
+            ]];
+    }
 
     if ( |pkg[new$host]| > 0 ) 
-	{
-	Netbase::SEND(new$host, pkg[new$host]);
-	}
+        {
+        Netbase::SEND(new$host, pkg[new$host]);
+        }
     }
 
 @if ( ! Cluster::is_enabled() || Cluster::local_node_type() == Cluster::PROXY )
