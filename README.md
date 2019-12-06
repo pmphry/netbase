@@ -20,7 +20,7 @@ When a worker finishes its analysis of a given connection it sends any recorded 
 
 High-level depiction of Netbase's structure and data flow. 
 <p align="center">
- <img width="500" height="400" src="/images/netbase_structure.png">
+ <img width="50%" height="auto" src="/images/netbase_structure.png">
 </p>
 
 # Observables 
