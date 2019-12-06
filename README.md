@@ -19,7 +19,9 @@ Netbase is meant to work best in Zeek clusters, although it functions just fine 
 When a worker finishes its analysis of a given connection it sends any recorded observables to the Proxy node(s) using Zeek's data partitioning API, which allows us to evenly spread keys in a table across multiple nodes in the cluster.  The Proxies process observables and associate them with the monitored IP address to which they apply, and regularly (on a set interval) log a summary of observations to the Netbase log stream. 
 
 High-level depiction of Netbase's structure and data flow. 
-![Netbase Structure](/images/netbase_structure.png)
+<p align="center">
+ <img width="500" height="400" src="/images/netbase_structure.png">
+</p>
 
 # Observables 
 
