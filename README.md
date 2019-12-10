@@ -25,7 +25,7 @@ High-level depiction of Netbase's structure and data flow.
 
 # Observables 
 
-Netbase's primary goal is turn interesting network device activity into quantitative metrics that can be analyzed and compared at scale, these metrics are referred to as _observables_.  What is considered _interesting activity_ is highly subjective though.  There are many, many inferences one can make by analyzing any one of Zeek's native logs.  The approach here is simple, try to be comprehensive.  Cover device behaviors that apply to all types of hosts with the understanding that not all observables will apply to every host and that's ok.  
+Netbase's primary goal is turn interesting network device activity into quantitative metrics that can be analyzed and compared at scale, these metrics are referred to as _observables_.  What is considered _interesting activity_ is highly subjective though.  There are many, many inferences one can make by analyzing any one of Zeek's native logs.  The approach here is simple, try to be comprehensive.  Cover device behaviors that apply to all types of hosts with the understanding that not all observables will apply to every host - and that's ok.  
 
 There are a few fundamental types of observables, they are:
 * Counts of specific device behaviors
