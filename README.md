@@ -2,7 +2,7 @@
 
 One of the biggest challenges we face as network traffic analysts is determining whether or not the traffic we are currently looking at is normal.  Normal is inherently difficult to define in a network environment.  What can be considered normal varies widely across devices.  Servers behave differently than workstations, domain controllers behave differently than database systems and so on.  Normal can also vary over time.  What is normal for a given host in the middle of a workday is usually very different than the behavior expected in the middle of the night.  
 
-So as we try to determine if some traffic is normal, we ask oursevles questions like "is this normal for this network?", "for this type of host?", "for this specific host?", "for this time of day?" and "for this particular day of the week?".  Answering these questions requires lots of contextual knowledge, experience in the environment, and access to data that provides the right insights.  Obtaining these things is not exactly trivial.  
+So as we try to determine if some traffic is normal, we ask oursevles questions like is this normal for this network? for this type of host? for this specific host? for this time of day? for this particular day of the week? Answering these questions requires lots of contextual knowledge, experience in the environment, and access to data that provides the right insights.  Obtaining these things is not trivial.  
 
 One way to accomplish this is to make running observations of things that can then be compared.  A baseline, by definition, is a "minimum or starting point used for comparison".  Perfect, sounds great, baselining sounds like a great fit, but how do you go about creating them?  
 
