@@ -4,7 +4,7 @@ One of the biggest challenges we face as network traffic analysts is determining
 
 So as we try to determine if some traffic is normal, we ask oursevles questions like is this normal for this network? for this type of host? for this specific host? for this time of day? for this particular day of the week? Answering these questions requires lots of contextual knowledge, experience in the environment, and access to data that provides the right insights.  Obtaining these things is not trivial.  
 
-One way to accomplish this is to make running observations of things that can then be compared.  A baseline, by definition, is a "minimum or starting point used for comparison".  Perfect, sounds great, baselining sounds like a great fit, but how do you go about creating them?  
+One way to accomplish this is to make running observations of things that can then be compared.  A baseline, by definition, is a "minimum or starting point used for comparison".  Perfect, baselining sounds like a great fit, but how do you create one?  
 
 # Netbase 
 
